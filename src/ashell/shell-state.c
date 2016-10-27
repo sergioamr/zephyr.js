@@ -278,10 +278,10 @@ int32_t ashell_print_file(char *buf)
     bool hidden = ashell_check_parameter(buf, 'v');
     bool lines = ashell_check_parameter(buf, 'n');
     if (lines)
-        printk(" Print lines \n");
+        DBG(" Print lines \n");
 
     if (hidden)
-        printk(" Print hidden \n");
+        DBG(" Print hidden \n");
 
     if (ashell_get_filename_buffer(buf, filename) <= 0) {
         return RET_ERROR;
@@ -292,7 +292,7 @@ int32_t ashell_print_file(char *buf)
         return RET_ERROR;
     }
 
-    printk("Open [%s]\n", filename);
+    DBG("Open [%s]\n", filename);
     file = csopen(filename, "r");
 
     /* Error getting an id for our data storage */
@@ -325,7 +325,7 @@ int32_t ashell_print_file(char *buf)
                 if (hidden && !isprint(byte)) {
                     acm_printf("(%x)", byte);
                 } else
-                    acm_writec(byte);
+                    acm_write(&byte, 1);
             }
         }
     } while (count > 0);
@@ -342,9 +342,7 @@ int32_t ashell_parse_javascript(char *buf)
         return RET_ERROR;
     }
 
-    bool verbose = ashell_check_parameter(buf, 'v');
-
-    javascript_parse_code(filename, verbose);
+    javascript_parse_code(filename);
     return RET_OK;
 }
 
@@ -572,7 +570,11 @@ int32_t ashell_ping(char *buf)
 
 int32_t ashell_clear(char *buf)
 {
-    acm_print(ANSI_CLEAR);
+    if (shell.state_flags & kShellTransferIhex) {
+        acm_print("[CLEAR]\n");
+    } else {
+        acm_print(ANSI_CLEAR);
+    }
     return RET_OK;
 }
 

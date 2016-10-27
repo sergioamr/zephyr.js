@@ -93,7 +93,7 @@ static void insert_char(char *pos, char c, uint8_t end)
     char tmp;
 
     /* Echo back to console */
-    acm_writec(c);
+    acm_flush_byte(c);
 
     if (end == 0) {
         *pos = c;
@@ -106,7 +106,7 @@ static void insert_char(char *pos, char c, uint8_t end)
     cursor_save();
 
     while (end-- > 0) {
-        acm_writec(tmp);
+        acm_flush_byte(tmp);
         c = *pos;
         *(pos++) = tmp;
         tmp = c;
@@ -118,11 +118,11 @@ static void insert_char(char *pos, char c, uint8_t end)
 
 static void del_char(char *pos, uint8_t end)
 {
-    acm_writec('\b');
+    acm_flush_byte('\b');
 
     if (end == 0) {
-        acm_writec(' ');
-        acm_writec('\b');
+        acm_flush_byte(' ');
+        acm_flush_byte('\b');
         return;
     }
 
@@ -130,10 +130,10 @@ static void del_char(char *pos, uint8_t end)
 
     while (end-- > 0) {
         *pos = *(pos + 1);
-        acm_writec(*(pos++));
+        acm_flush_byte(*(pos++));
     }
 
-    acm_writec(' ');
+    acm_flush_byte(' ');
 
     /* Move cursor back to right place */
     cursor_restore();
@@ -475,7 +475,7 @@ uint32_t ashell_process_data(const char *buf, uint32_t len)
                 flush_line = true;
                 break;
             case ASCII_TAB:
-                acm_writec('\t');
+                acm_flush_byte('\t');
                 break;
             case ASCII_IF:
                 flush_line = true;

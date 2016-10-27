@@ -127,5 +127,7 @@ void main(void)
 void main_development_shell(void)
 #endif
 {
+#ifdef CONFIG_CONSOLE_HANDLER_SHELL
     shell_init(system_get_prompt(), commands);
+#endif
 }

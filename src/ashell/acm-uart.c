@@ -307,7 +307,6 @@ static void acm_interrupt_handler(struct device *dev)
         }
 
         if (uart_irq_tx_ready(dev)) {
-            atomic_set(&uart_state, UART_TX_READY);
             data_transmitted = true;
         }
     }
@@ -317,34 +316,30 @@ static void acm_interrupt_handler(struct device *dev)
 
 /*************************** ACM OUTPUT *******************************/
 /**
-* @brief Output one character to UART ACM
-*
-* @param c Character to output
-* @return success
-*/
+ * @brief Output one character to UART ACM
+ *
+ * @param c Character to output
+ * @return success
+ */
 
 static int acm_out(int c)
 {
-    acm_writec((char)c);
+    char byte = (char) c;
+    acm_write(&byte, 1);
     return 1;
 }
 
-/*
-* @brief Writes data into the uart and flushes it.
-*
-* @param buf Buffer to write
-* @param len length of buffer
-*
-* @todo Really dislike this wait here from the example
-* will probably rewrite it later with a line queue
-*/
+/**
+ * @brief Writes data into the uart and flushes it.
+ *
+ * @param buf Buffer to write
+ * @param len length of buffer
+ */
 
-void acm_write(const char *buf, int len)
+void acm_write_flush(const char *buf, int len)
 {
-    if (len == 0)
-        return;
-
     struct device *dev = dev_upload;
+
     uart_irq_tx_enable(dev);
 
     data_transmitted = false;
@@ -355,20 +350,81 @@ void acm_write(const char *buf, int len)
     uart_irq_tx_disable(dev);
 }
 
-void acm_writec(char byte)
+static char acm_line[80];
+static uint16_t acm_line_pos = 0;
+
+/**
+ * @brief Flush the line into the ACM fifo queue
+ *
+ */
+
+void acm_flush()
 {
-    acm_write(&byte, 1);
+    acm_write_flush(acm_line, acm_line_pos);
+    acm_line_pos = 0;
+}
+
+/**
+ * @brief Accumulates data and flushes only when it detects a carriage return
+ * @todo This function is to minimise the problem with duplicated characters we are facing with the A101.
+ *       when we write too many items on the queue.
+ *
+ * @param buf Buffer to write
+ * @param len length of buffer
+ *
+ * @todo Really dislike this wait here from the example
+ * will probably rewrite it later with a line queue
+ */
+
+void acm_write(const char *buf, int len)
+{
+    if (len == 0)
+        return;
+
+    bool flush = false;
+    while (len > 0) {
+        acm_line[acm_line_pos++] = *buf;
+        if (acm_line_pos == sizeof(acm_line)) {
+            flush = true;
+            printk("Flush!\n");
+        } else
+        if (*buf == '\n') {
+            flush = true;
+            acm_line[acm_line_pos] = 0;
+            printk("%s", acm_line);
+        }
+        buf++;
+        len--;
+
+        if (flush) {
+            acm_flush();
+        }
+    }
+}
+
+/**
+ * @brief Writes an independent character and flushes it
+ * Careful if you mix
+ *
+ * @param byte Character to send
+ */
+
+void acm_flush_byte(char byte)
+{
+    acm_write_flush(&byte, 1);
 }
 
 void acm_print(const char *buf)
 {
     acm_write(buf, strnlen(buf, MAX_LINE_LEN * 4));
+    acm_flush();
 }
 
 void acm_println(const char *buf)
 {
     acm_write(buf, strnlen(buf, MAX_LINE_LEN));
     acm_write("\r\n", 2);
+    acm_flush();
 }
 
 /**
@@ -551,6 +607,7 @@ void acm()
         if (dtr)
             break;
     }
+
 
     /* They are optional, we use them to test the interrupt endpoint */
     ret = uart_line_ctrl_set(dev_upload, LINE_CTRL_DCD, 1);

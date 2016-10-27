@@ -158,8 +158,8 @@ void acm_clear();
 
 void acm_println(const char *buf);
 void acm_write(const char *buf, int len);
-void acm_writec(char byte);
 void acm_print(const char *buf);
 void acm_printf(const char *format, ...);
+void acm_flush_byte(char byte);
 
 #endif  // __acm_uart_h__

@@ -47,7 +47,6 @@ int csexist(const char *path)
 
 ZFILE *csopen(const char * filename, const char * mode)
 {
-    printk("[OPEN] %s\n", filename);
     int res;
 
     /* Delete file if exists */
@@ -121,7 +120,6 @@ ssize_t csread(char * ptr, size_t size, size_t count, ZFILE * fp)
 
 int csclose(ZFILE * fp)
 {
-    printk("[CLOSE]\n");
     int res = fs_close(fp);
     free(fp);
     return res;

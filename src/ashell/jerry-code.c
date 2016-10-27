@@ -133,10 +133,10 @@ void javascript_eval_code(const char *source_buffer)
 }
 
 
-void restore_zjs_api() {    
-#ifdef ZJS_POOL_CONFIG    
+void restore_zjs_api() {
+#ifdef ZJS_POOL_CONFIG
     zjs_init_mem_pools();
-#ifdef DUMP_MEM_STATS    
+#ifdef DUMP_MEM_STATS
     zjs_print_pools();
 #endif
 #endif
@@ -170,7 +170,7 @@ void javascript_stop()
     restore_zjs_api();
 }
 
-int javascript_parse_code(const char *file_name, bool show_lines)
+int javascript_parse_code(const char *file_name)
 {
     int ret = -1;
     javascript_stop();
@@ -204,28 +204,6 @@ int javascript_parse_code(const char *file_name, bool show_lines)
         goto cleanup;
     }
 
-    if (show_lines) {
-        acm_printf("[READ] %d\n", (int)brw);
-
-        // Print buffer test
-        int line = 0;
-        acm_println("[START]");
-        acm_printf("%5d  ", line++);
-        for (int t = 0; t < brw; t++) {
-            uint8_t byte = buf[t];
-            if (byte == '\n' || byte == '\r') {
-                acm_write("\r\n", 2);
-                acm_printf("%5d  ", line++);
-            } else {
-                if (!isprint(byte)) {
-                    acm_printf("(%x)", byte);
-                } else
-                    acm_writec(byte);
-            }
-        }
-        acm_println("[END]");
-    }
-
     /* Setup Global scope code */
     parsed_code = jerry_parse((const jerry_char_t *) buf, size, false);
     if (jerry_value_has_error_flag(parsed_code)) {
@@ -244,7 +222,7 @@ cleanup:
 
 void javascript_run_code(const char *file_name)
 {
-    if (javascript_parse_code(file_name, false) != 0)
+    if (javascript_parse_code(file_name) != 0)
         return;
 
     /* Execute the parsed source code in the Global scope */

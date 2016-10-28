@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <atomic.h>
 #include <malloc.h>
@@ -58,6 +59,8 @@ const char ERROR_NOT_RECOGNIZED[] = "Unknown command";
 const char ERROR_NOT_ENOUGH_ARGUMENTS[] = "Not enough arguments";
 const char ERROR_FILE_NOT_FOUND[] = "File not found";
 const char ERROR_EXCEDEED_SIZE[] = "String too long";
+const char ERROR_EMPTY_FILE[] = "File empty";
+const char ERROR_FAILED_WRITING[] = "Failed writing to disk";
 
 const char MSG_FILE_SAVED[] =
      ANSI_FG_GREEN "Saving file. " ANSI_FG_RESTORE
@@ -89,12 +92,26 @@ const char eval_prompt[] = ANSI_FG_GREEN "js> " ANSI_FG_RESTORE;
 #define DBG printk
 #endif /* CONFIG_IHEX_UPLOADER_DEBUG */
 
+void ashell_print_error(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    if (shell.state_flags & kShellTransferIhex)
+        printf("[ERROR]");
+
+    vfprintf(stdout, format, args);
+    printf("\n");
+    va_end(args);
+}
+
 int32_t ashell_get_filename_buffer(const char *buf, char *destination)
 {
     uint32_t arg_len = 0;
     uint32_t len = strnlen(buf, MAX_FILENAME_SIZE);
-    if (len == 0)
+    if (len == 0) {
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
+    }
 
     if (buf[0] == '-')
         return 0;
@@ -103,7 +120,7 @@ int32_t ashell_get_filename_buffer(const char *buf, char *destination)
 
     if (arg_len == 0) {
         *destination = '\0';
-        acm_printf(ERROR_NOT_ENOUGH_ARGUMENTS);
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
@@ -114,6 +131,7 @@ int32_t ashell_remove_file(char *buf)
 {
     char filename[MAX_FILENAME_SIZE];
     if (ashell_get_filename_buffer(buf, filename) <= 0) {
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
@@ -121,7 +139,7 @@ int32_t ashell_remove_file(char *buf)
     if (!res)
         return RET_OK;
 
-    printf("rm: cannot remove '%s': %d\n", filename, res);
+    ashell_print_error("rm: cannot remove '%s': %d", filename, res);
     return RET_ERROR;
 }
 
@@ -141,12 +159,13 @@ int32_t ashell_disk_usage(char *buf)
 {
     char filename[MAX_FILENAME_SIZE];
     if (ashell_get_filename_buffer(buf, filename) <= 0) {
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
     ZFILE *file = csopen(filename, "r");
     if (file == NULL) {
-        acm_println(ERROR_FILE_NOT_FOUND);
+        ashell_print_error(ERROR_FILE_NOT_FOUND);
         return RET_ERROR;
     }
 
@@ -166,7 +185,7 @@ int32_t ashell_rename(char *buf)
     if (ashell_get_filename_buffer(buf, path_org) > 0) {
         /* Check if file or directory */
         if (fs_stat(path_org, &entry)) {
-            acm_printf("mv: cannot access '%s' no such file or directory\n", path_org);
+            ashell_print_error("mv: cannot access '%s' no such file or directory", path_org);
             return RET_ERROR;
         }
     }
@@ -175,7 +194,7 @@ int32_t ashell_rename(char *buf)
     char *next = ashell_get_token_arg(buf);
 
     if (next == NULL) {
-        acm_println(ERROR_NOT_ENOUGH_ARGUMENTS);
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
@@ -184,7 +203,7 @@ int32_t ashell_rename(char *buf)
     if (ashell_get_filename_buffer(next, path_dest) > 0) {
         /* Check if file or directory */
         if (!fs_stat(path_dest, &entry)) {
-            acm_printf("mv: cannot access '%s' file already exists\n", path_dest);
+            ashell_print_error("mv: cannot access '%s' file already exists", path_dest);
             return RET_ERROR;
         }
     }
@@ -193,9 +212,9 @@ int32_t ashell_rename(char *buf)
     return RET_OK;
 }
 
-int32_t ashell_error(char *buf)
+int32_t ashell_javascript_error(char *buf)
 {
-    printk("[Error](%s)\n", buf);
+    printk("[ERROR](%s)\n", buf);
     jerry_port_log(JERRY_LOG_LEVEL_ERROR, "stderr test (%s)\n", buf);
     return 0;
 }
@@ -228,15 +247,15 @@ int32_t ashell_list_dir(char *buf)
                 return RET_OK;
             }
         } else {
-            printf("ls: cannot access %s: no such file or directory\n", filename);
+            ashell_print_error("ls: cannot access %s: no such file or directory", filename);
             return RET_ERROR;
         }
     }
 
     res = fs_opendir(&dp, filename);
     if (res) {
-        printf("Error opening dir [%lu]\n", res);
-        return res;
+        ashell_print_error("Error opening dir [%lu]", res);
+        return RET_ERROR;
     }
 
     if (shell.state_flags & !kShellTransferIhex) {
@@ -284,11 +303,12 @@ int32_t ashell_print_file(char *buf)
         DBG(" Print hidden \n");
 
     if (ashell_get_filename_buffer(buf, filename) <= 0) {
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
     if (!csexist(filename)) {
-        printf(ERROR_FILE_NOT_FOUND);
+        ashell_print_error(ERROR_FILE_NOT_FOUND);
         return RET_ERROR;
     }
 
@@ -297,13 +317,13 @@ int32_t ashell_print_file(char *buf)
 
     /* Error getting an id for our data storage */
     if (!file) {
-        acm_println(ERROR_FILE_NOT_FOUND);
+        ashell_print_error(ERROR_FILE_NOT_FOUND);
         return RET_ERROR;
     }
 
     ssize_t size = cssize(file);
     if (size == 0) {
-        acm_println("Empty file");
+        ashell_print_error(ERROR_EMPTY_FILE);
         csclose(file);
         return RET_OK;
     }
@@ -339,6 +359,7 @@ int32_t ashell_parse_javascript(char *buf)
 {
     char filename[MAX_FILENAME_SIZE];
     if (ashell_get_filename_buffer(buf, filename) <= 0) {
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
@@ -350,6 +371,7 @@ int32_t ashell_run_javascript(char *buf)
 {
     char filename[MAX_FILENAME_SIZE];
     if (ashell_get_filename_buffer(buf, filename) <= 0) {
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
@@ -369,6 +391,7 @@ int32_t ashell_start_raw_capture(char *filename)
 
     /* Error getting an id for our data storage */
     if (!file_code) {
+        ashell_print_error(ERROR_FILE_NOT_FOUND);
         return RET_ERROR;
     }
     return RET_OK;
@@ -445,6 +468,7 @@ int32_t ashell_raw_capture(const char *buf, uint32_t len)
         } else {
             size_t written = cswrite(&byte, 1, 1, file_code);
             if (written == 0) {
+                ashell_print_error(ERROR_FAILED_WRITING);
                 return RET_ERROR;
             }
             DBG("%c", byte);
@@ -461,6 +485,7 @@ int32_t ashell_read_data(char *buf)
     char filename[MAX_FILENAME_SIZE];
     if (shell.state_flags & kShellTransferRaw) {
         if (ashell_get_filename_buffer(buf, filename) <= 0) {
+            ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
             return RET_ERROR;
         }
 
@@ -491,7 +516,7 @@ int32_t ashell_set_transfer_state(char *buf)
 {
     char *next;
     if (buf == 0) {
-        acm_println(ERROR_NOT_ENOUGH_ARGUMENTS);
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
     next = ashell_get_token_arg(buf);
@@ -516,7 +541,7 @@ int32_t ashell_set_transfer_state(char *buf)
 int32_t ashell_set_state(char *buf)
 {
     if (buf == 0) {
-        acm_println(ERROR_NOT_ENOUGH_ARGUMENTS);
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
@@ -531,7 +556,7 @@ int32_t ashell_set_state(char *buf)
 int32_t ashell_get_state(char *buf)
 {
     if (buf == 0) {
-        acm_println(ERROR_NOT_ENOUGH_ARGUMENTS);
+        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 
@@ -625,7 +650,7 @@ static const struct ashell_cmd commands[] =
     ASHELL_COMMAND("rmdir", "[TODO]"                                         ,ashell_remove_dir),
     ASHELL_COMMAND("mkdir", "[TODO]"                                         ,ashell_make_dir),
     ASHELL_COMMAND("test",  "Runs your current test"                         ,ashell_test),
-    ASHELL_COMMAND("error", "Prints an error using JerryScript"              ,ashell_error),
+    ASHELL_COMMAND("error", "Prints an error using JerryScript"              ,ashell_javascript_error),
     ASHELL_COMMAND("ping",  "Prints '[PONG]' to check that we are alive"     ,ashell_ping),
     ASHELL_COMMAND("at",    "OK used by the driver when initializing"        ,ashell_at),
 
@@ -697,7 +722,7 @@ int32_t ashell_main_state(char *buf, uint32_t len)
 
     /* Shell didn't recognize the command */
     if (shell.state_flags & kShellTransferIhex) {
-        acm_print("[ERRCMD]\n");
+        ashell_print_error("Unknown command");
     } else {
         acm_printf("%s: command not found. \r\n", buf);
         acm_println("Type 'help' for available commands.");

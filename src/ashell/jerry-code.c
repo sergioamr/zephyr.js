@@ -122,7 +122,7 @@ void javascript_eval_code(const char *source_buffer)
                          false);
 
     if (jerry_value_has_error_flag(ret_val)) {
-        printf("[ERR] failed to evaluate JS\n");
+        printf("[ERROR] failed to evaluate JS\n");
         javascript_print_error(ret_val);
     } else {
         if (!jerry_value_is_undefined(ret_val))
@@ -184,13 +184,13 @@ int javascript_parse_code(const char *file_name)
 
     ssize_t size = cssize(fp);
     if (size == 0) {
-        acm_printf("[ERR] Empty file (%s)\n", file_name);
+        acm_printf("[ERROR] Empty file (%s)\n", file_name);
         goto cleanup;
     }
 
     buf = (char *)malloc(size);
     if (buf == NULL) {
-        acm_printf("[ERR] Not enough memory for (%s)\n", file_name);
+        acm_printf("[ERROR] Not enough memory for (%s)\n", file_name);
         goto cleanup;
     }
 
@@ -200,14 +200,14 @@ int javascript_parse_code(const char *file_name)
     }
 
     if (brw == 0) {
-        acm_printf("[ERR] Failed loading code %s\n", file_name);
+        acm_printf("[ERROR] Failed loading code %s\n", file_name);
         goto cleanup;
     }
 
     /* Setup Global scope code */
     parsed_code = jerry_parse((const jerry_char_t *) buf, size, false);
     if (jerry_value_has_error_flag(parsed_code)) {
-        printf("[ERR] Could not parse JS\n");
+        printf("[ERROR] Could not parse JS\n");
         javascript_print_error(parsed_code);
         jerry_release_value(parsed_code);
     } else {

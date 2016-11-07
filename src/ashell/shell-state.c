@@ -109,7 +109,6 @@ int32_t ashell_get_filename_buffer(const char *buf, char *destination)
     uint32_t arg_len = 0;
     uint32_t len = strnlen(buf, MAX_FILENAME_SIZE);
     if (len == 0) {
-        ashell_print_error(ERROR_NOT_ENOUGH_ARGUMENTS);
         return RET_ERROR;
     }
 

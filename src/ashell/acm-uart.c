@@ -344,14 +344,17 @@ void acm_write(const char *buf, int len)
     if (len == 0)
         return;
 
+    printk("Writing\n");
     struct device *dev = dev_upload;
     uart_irq_tx_enable(dev);
 
     data_transmitted = false;
     uart_fifo_fill(dev, buf, len);
 
+    printk("Waiting\n");
     while (data_transmitted == false);
 
+    printk("End waiting\n");
     uart_irq_tx_disable(dev);
 }
 
@@ -532,10 +535,10 @@ void acm()
     main_development_shell();
 #endif
 
-    dev_upload = device_get_binding(CONFIG_CDC_ACM_PORT_NAME);
+    dev_upload = device_get_binding(CONFIG_WEBUSB_PORT_NAME);
 
     if (!dev_upload) {
-        printf("CDC [%s] ACM device not found\n", CONFIG_CDC_ACM_PORT_NAME);
+        printf("CDC [%s] ACM device not found\n", CONFIG_WEBUSB_PORT_NAME);
         return;
     }
 

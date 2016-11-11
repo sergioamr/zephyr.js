@@ -344,18 +344,18 @@ void acm_write(const char *buf, int len)
     if (len == 0)
         return;
 
-    printk("Writing\n");
     struct device *dev = dev_upload;
     uart_irq_tx_enable(dev);
 
     data_transmitted = false;
     uart_fifo_fill(dev, buf, len);
-
-    printk("Waiting\n");
     while (data_transmitted == false);
 
-    printk("End waiting\n");
     uart_irq_tx_disable(dev);
+
+    for (int t = 0; t < len; t++) {
+        printk("%c", buf[t]);
+    }
 }
 
 void acm_writec(char byte)

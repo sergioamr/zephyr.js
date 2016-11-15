@@ -79,7 +79,6 @@ if [ $? -eq 0 ]; then
     >&2 echo Using module: PWM
     MODULES+=" -DBUILD_MODULE_PWM"
     echo "CONFIG_PWM=y" >> prj.conf.tmp
-    echo "CONFIG_PWM_QMSI_NUM_PORTS=4" >> prj.conf.tmp
 fi
 check_for_require uart
 if [ $? -eq 0 ]; then

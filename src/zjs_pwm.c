@@ -48,8 +48,9 @@ static void zjs_pwm_set(jerry_value_t obj, double periodHW, double pulseWidthHW)
     uint32_t period = periodHW / sys_clock_hw_cycles_per_sec * 1000;
 
     // convert to microseconds
-    pwm_pin_set_period(zjs_pwm_dev[devnum], channel, (uint32_t)(period * 1000));
-    pwm_pin_set_values(zjs_pwm_dev[devnum], channel, 0, pulseWidthHW);
+    //pwm_pin_set_period(zjs_pwm_dev[devnum], channel, (uint32_t)(period * 1000));
+    //pwm_pin_set_values(zjs_pwm_dev[devnum], channel, 0, pulseWidthHW);
+    pwm_pin_set_usec(zjs_pwm_dev[devnum], channel, (uint32_t)(period * 1000), pulseWidthHW);
 }
 
 static void zjs_pwm_set_period_cycles(jerry_value_t obj, double periodHW)

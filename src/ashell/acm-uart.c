@@ -110,8 +110,8 @@ struct acm_input
     char line[MAX_LINE_LEN + 1];
 };
 
-static struct nano_fifo avail_queue;
-static struct nano_fifo data_queue;
+static struct k_fifo avail_queue;
+static struct k_fifo data_queue;
 static bool uart_process_done = false;
 static uint8_t fifo_size = 0;
 static uint8_t max_fifo_size = 0;
@@ -127,7 +127,7 @@ static char *buf;
 
 struct acm_input *fifo_get_isr_buffer()
 {
-    void *data = nano_isr_fifo_get(&avail_queue, TICKS_NONE);
+    void *data = k_fifo_get(&avail_queue, K_NO_WAIT);
     if (!data) {
         data = (void *)malloc(sizeof(struct acm_input));
         memset(data, '*', sizeof(struct acm_input));
@@ -142,7 +142,7 @@ struct acm_input *fifo_get_isr_buffer()
 void fifo_cache_clear()
 {
     while(fifo_size > 0) {
-        void *data = nano_isr_fifo_get(&avail_queue, TICKS_NONE);
+        void *data = k_fifo_get(&avail_queue, K_NO_WAIT);
         if (!data)
             return;
 
@@ -164,7 +164,7 @@ void fifo_recycle_buffer(struct acm_input *data)
         free_count++;
         return;
     }
-    nano_task_fifo_put(&avail_queue, data);
+    k_fifo_put(&avail_queue, data);
 }
 
 void acm_clear(void)
@@ -173,13 +173,13 @@ void acm_clear(void)
     do {
         if (data != NULL)
             free(data);
-        data = nano_fifo_get(&avail_queue, TICKS_NONE);
+        data = k_fifo_get(&avail_queue, K_NO_WAIT);
     } while (data);
 
     do {
         if (data != NULL)
             free(data);
-        data = nano_fifo_get(&data_queue, TICKS_NONE);
+        data = k_fifo_get(&data_queue, K_NO_WAIT);
     } while (data);
 }
 
@@ -301,7 +301,7 @@ static void acm_interrupt_handler(struct device *dev)
                 isr_data->line[tail] = 0;
                 tail = 0;
                 atomic_inc(&data_queue_count);
-                nano_isr_fifo_put(&data_queue, isr_data);
+                k_fifo_put(&data_queue, isr_data);
                 isr_data = NULL;
             }
         }
@@ -453,7 +453,7 @@ void acm_runner()
 
             while (data == NULL) {
                 DBG("[Wait]\n");
-                data = nano_task_fifo_get(&data_queue, FIVE_SECONDS);
+                data = k_fifo_get(&data_queue, FIVE_SECONDS);
                 if (data) {
                     atomic_dec(&data_queue_count);
                     buf = data->line;
@@ -539,8 +539,8 @@ void acm()
         return;
     }
 
-    nano_fifo_init(&data_queue);
-    nano_fifo_init(&avail_queue);
+    k_fifo_init(&data_queue);
+    k_fifo_init(&avail_queue);
 
 #ifdef CONFIG_UART_LINE_CTRL
     uint32_t dtr = 0;
@@ -561,8 +561,8 @@ void acm()
     if (ret)
         printf("DSR Failed %d\n", ret);
 
-    /* Wait 1 sec for the host to do all settings */
-    sys_thread_busy_wait(1000000);
+    /* 1000 msec = 1 sec */
+    k_sleep(1000);
 
 #endif
 
